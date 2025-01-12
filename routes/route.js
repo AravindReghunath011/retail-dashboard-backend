@@ -2,6 +2,7 @@ const express = require("express");
 const { RestrictedPerson } = require("../models/restrictedPersonModel");
 const { Car } = require("../models/carModel");
 const AlertData = require('../models/restrictedAlerts');
+const { restrictedCar } = require("../models/restrictedCarModel");
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ module.exports = (io) => {
         try {
             const car = new Car({ name, numberPlate, country });
             await car.save();
-            res.status(201).json({ message: "Car registered successfully!" });
+            res.status(201).json({ message: "Car registered successfully!" }); 
         } catch (err) {
             console.error("Error registering car:", err.message);
             if (err.code === 11000) {
@@ -26,8 +27,18 @@ module.exports = (io) => {
         }
     });
 
+    router.get('/restrictedCars',async(req,res)=>{
+      let data = await restrictedCar.find({})
+      console.log(data,'data')
+      res.json({message:'cards',data:data})
+    }) 
+
+    router.post('/restrictPerson',(req,res)=>{
+      res.json({message:"ppl"})
+    })
+
     router.post("/webhook", async (req, res) => {
-      try {
+      try { 
         console.log('entered webhook');
         const { type, person_id, vehicle_id } = req.body;
     
@@ -42,8 +53,13 @@ module.exports = (io) => {
     
           // Check in RestrictedPerson
           const person = await RestrictedPerson.findOne({ rId: person_id });
-    
+          
           if (person) {
+             // Emit an event to notify clients
+             io.emit("restrictedPersonFound", {
+              message: "Restricted person found",
+              person,
+            });
             // Create a new AlertData object
             const alertData = new AlertData({
               timestamp: new Date(),
@@ -52,11 +68,7 @@ module.exports = (io) => {
             });
             await alertData.save();
     
-            // Emit an event to notify clients
-            io.emit("restrictedPersonFound", {
-              message: "Restricted person found",
-              person,
-            });
+           
     
             return res.json({
               message: "Person found in restricted list",
@@ -73,7 +85,7 @@ module.exports = (io) => {
           }
     
           // Check in Car
-          const vehicle = await Car.findOne({ numberPlate: vehicle_id });
+          const vehicle = await restrictedCar.findOne({ numberPlate: vehicle_id });
     
           if (vehicle) {
             // Create a new AlertData object
@@ -101,6 +113,12 @@ module.exports = (io) => {
       }
     });
 
+    router.get('/getRestrictedList',async(req,res)=>{
+      let data = await AlertData.find({})
+      console.log(data)
+      res.json({data})
+    })
+
     router.post("/getRestrictedPerson", async (req, res) => {
         let name = req.body.searchName;
         let id = req.body.searchId;
@@ -124,6 +142,41 @@ module.exports = (io) => {
             console.error("Error fetching restricted person:", error);
             res.status(500).json({ message: "Internal server error" });
         }
+    });
+
+    router.post("/restrictCar", async (req, res) => {
+      try {
+        console.log('entered')
+        const { numberPlate,reason,country } = req.body;
+    
+        // Validate the input
+        if (!numberPlate) {
+          return res.status(400).json({ message: "Number Plate is required" });
+        }
+    
+        // Check if the car is already in the restricted list
+        const existingCar = await restrictedCar.findOne({ numberPlate });
+    
+        if (existingCar) {
+          return res.status(400).json({ message: "Car is already in the restricted list" });
+        }
+    
+        // If the car is not restricted, add it to the list
+        const newRestrictedCar = new restrictedCar({
+          numberPlate,
+          reason,
+          country
+        });
+    
+        await newRestrictedCar.save();
+    
+        // Respond with success message
+        res.status(200).json({ message: "Car has been restricted successfully", car: newRestrictedCar });
+    
+      } catch (error) {
+        console.error("Error handling restrict car:", error.message);
+        res.status(500).json({ message: "Internal server error" });
+      }
     });
 
     router.post("/restrictPerson", async (req, res) => {
