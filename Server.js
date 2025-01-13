@@ -1,11 +1,13 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+const path = require("path");
 const routes = require("./routes/route");
 require('./dbConfig/config');
 
 const app = express();
 const server = http.createServer(app);
+const hostname = '0.0.0.0';
 
 // Allow CORS for the Express app
 app.use(express.json());
@@ -27,8 +29,17 @@ const io = new Server(server, {
 // Pass the io instance to the routes
 app.use("/api", routes(io));
 
+// Serve the React static files (from build or dist folder)
+const reactBuildPath = path.join(__dirname, "dist"); // Adjust to 'build' for CRA
+app.use(express.static(reactBuildPath));
+
+// Catch-all route to serve React's index.html for frontend routes
+app.get("*", (req, res) => {
+    res.sendFile(path.join(reactBuildPath, "index.html"));
+});
+
 // Start the server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+server.listen(PORT, hostname, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
 });

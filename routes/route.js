@@ -3,6 +3,7 @@ const { RestrictedPerson } = require("../models/restrictedPersonModel");
 const { Car } = require("../models/carModel");
 const AlertData = require('../models/restrictedAlerts');
 const { restrictedCar } = require("../models/restrictedCarModel");
+const Person = require("../models/personModel");
 
 const router = express.Router();
 
@@ -118,6 +119,36 @@ module.exports = (io) => {
       console.log(data)
       res.json({data})
     })
+
+    router.post('/registerPerson', async (req, res) => {
+      try {
+        // Get data from the request body
+        const { timestamp, type, person_id, image_name, image_data } = req.body;
+    
+        // Validate if all required fields are provided
+        if (!timestamp || !type || !person_id || !image_name || !image_data) {
+          return res.status(400).json({ message: 'All fields are required.' });
+        }
+    
+        // Create a new Person instance with the provided data
+        const person = new Person({
+          timestamp,
+          type,
+          person_id,
+          image_name,
+          image_data,
+        });
+    
+        // Save the person to the database
+        const savedPerson = await person.save();
+        
+        // Respond with the saved person data
+        res.status(201).json({ message: 'Person registered successfully!', data: savedPerson });
+      } catch (error) {
+        console.error('Error saving person data:', error);
+        res.status(500).json({ message: 'Error registering person', error: error.message });
+      }
+    });
 
     router.post("/getRestrictedPerson", async (req, res) => {
         let name = req.body.searchName;
